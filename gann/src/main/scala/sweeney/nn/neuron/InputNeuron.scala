@@ -9,6 +9,7 @@ class InputNeuron extends SimpleNeuron{
 	def value = _value
 	
 	def getValue:Double = { this._value }
-	
+
+	def reset():Unit = {}
 }
 

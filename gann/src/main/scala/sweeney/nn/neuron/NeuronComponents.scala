@@ -20,11 +20,21 @@ trait NeuronInputs{
 	def inputs():Seq[SimpleNeuron] = { _inputs.map(_._1) }
 	def inputsWithWeights():Seq[(SimpleNeuron,Double)] = { _inputs.toSeq }
 	
-	def getValuesOfInputs(){
-		_tempInputValues = _inputs.map{neuronAndWeight =>
+	def setWeight(index:Int,weight:Double){
+		val (inputNeuron,curWeight) = _inputs(index)
+		_inputs(index) = ((inputNeuron,weight))
+	}
+	
+	def getWeight(index:Int):Double = {
+		_inputs(index)._2
+	}
+	
+	def loadInputValues(){
+		val newTempInputs = _inputs.map{neuronAndWeight =>
 			val (neuron,weight) = neuronAndWeight
 			neuron.getValue * weight
 		}
+		_tempInputValues = newTempInputs 
 	}
 }
  
@@ -36,19 +46,30 @@ trait NeuronInputCombination {
 	self:SimpleNeuron with sweeney.nn.neuron.NeuronInputs =>
 	
 	protected var _combineFunc:InputCombinationFunction;
+	private var _combinedValue = 0.0
+	private var _calcedCombination = false
+	var bias:Double = 0.0
+
+	
+	def clearCombinedValue() = _calcedCombination = false
 	
 	def combineFunc_=(combineFunc:InputCombinationFunction){
 		_combineFunc = combineFunc
 	}
 	def combineFunc():InputCombinationFunction = _combineFunc
-	
+
 	def combine() = {
 		_combineFunc
 	}
 	
 	def getCombinedInputs():Double = {
-		combineFunc.combineInputs(_tempInputValues)
+		if(!_calcedCombination){
+			_combinedValue = combineFunc.combineInputs(_tempInputValues)
+			_calcedCombination = true
+		}
+		_combinedValue
 	}
+	
 }
 
 /**
@@ -60,22 +81,29 @@ trait NeuronMemory{
 	
 	protected var _memValue = 0.0
 	protected var _memActivation = 0.5
+	protected var _calcedMemValue = false
 	
 	def getRememberedValue():Double = {
 		if(_tempInputValues.size < 2){
 			0.0
 		}
 		else{
-			val halfInd = _tempInputValues.size / 2
-			val (first,second) = _tempInputValues.splitAt(halfInd)
-			val activation = AverageCombination.combineInputs(first)
-			val value = AverageCombination.combineInputs(second)
-			if(activation >= _memActivation)
-				_memValue = value
-			
+			if(!_calcedMemValue){
+				val halfInd = _tempInputValues.size / 2
+				val (first,second) = _tempInputValues.splitAt(halfInd)
+				val activation = AverageCombination.combineInputs(first)
+				val value = AverageCombination.combineInputs(second)
+				if(activation >= _memActivation)
+					_memValue = value
+					
+				_calcedMemValue = true
+			}
 			_memValue
 		}
-		
+	}
+	
+	def clearMemory(){
+		_calcedMemValue = false
 	}
 }
 
@@ -83,50 +111,44 @@ trait NeuronActivation{
 	self:SimpleNeuron =>
 	
 	protected var _normalizationFunc:NormalizationFunction;
-	protected var _minInput:Double = 0;
-	protected var _maxInput:Double = 1;
-	protected var _minOutput:Double = 0;
-	protected var _maxOutput:Double = 1;
+	var minInput:Double = 0;
+	var maxInput:Double = 1;
+	var minOutput:Double = 0;
+	var maxOutput:Double = 1;
 	
 	def normalizationFunc_=(normalizationFunc:NormalizationFunction){
 		_normalizationFunc = normalizationFunc
 	}
 	def normalizationFunc():NormalizationFunction = _normalizationFunc
 	
-	def minInput_=(minInput:Double) = {_minInput = minInput}
-	def minInput():Double = { _minInput }
-	
-	def maxInput_=(maxInput:Double) = {_maxInput = maxInput}
-	def maxInput():Double = { _maxInput }
-	
-	def minOutput_=(minOutput:Double) = {_minOutput = minOutput}
-	def minOutput():Double = { _minOutput }
-	
-	def maxOutput_=(maxOutput:Double) = {_maxOutput = maxOutput}
-	def maxOutput():Double = { _maxOutput }
-	
 	def inputRange_=(range:(Double,Double)):Unit = { 
-		minInput_=(range._1)
-		maxInput_=(range._2)
+		minInput = range._1
+		maxInput = range._2
 	}
 	def inputRange():(Double,Double) = { 
 		(minInput,maxInput)
 	}
 	
 	def outputRange_=(range:(Double,Double)):Unit = { 
-		minOutput_=(range._1)
-		maxOutput_=(range._2)
+		minOutput = range._1
+		maxOutput = range._2
 	}
 	def outputtRange():(Double,Double) = { 
 		(minOutput,maxOutput)
 	}
 	
 	def normalizeOutput(unNormalized:Double):Double = {
-		_normalizationFunc.normalize(unNormalized, _minInput, _maxInput, _minOutput, _maxOutput)
+		_normalizationFunc.normalize(unNormalized, minInput, maxInput, minOutput, maxOutput)
+	}
+	
+	def derivOutput(unNormalized:Double):Double = {
+		_normalizationFunc.derivative(unNormalized, minInput, maxInput, minOutput, maxOutput)
 	}
 }
 
 trait SimpleNeuron {
+	
+	def reset():Unit
 	
 	def getValue:Double
 }

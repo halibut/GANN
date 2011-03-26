@@ -21,14 +21,17 @@ import sweeney.nn.calc.combination._
  * and the last containing 3.
  */
 abstract class SimpleNeuralNetwork[T](
-		val inputKeys:IndexedSeq[T], 
-		val outputKeys:IndexedSeq[T], 
-		val hiddenLayers:IndexedSeq[Int]) extends NeuralNetwork[T] {
+		val inputKeys:Seq[T], 
+		val outputKeys:Seq[T], 
+		val hiddenLayers:Seq[Int]) extends NeuralNetwork[T] {
 	
 	require(!inputKeys.isEmpty,"Input layer must have at least 1 neuron.")
 	require(!outputKeys.isEmpty,"Output layer must have at least 1 neuron.")
 	require(hiddenLayers.forall(_ > 0),"Hidden layers must have at least 1 neuron. - " + hiddenLayers)
 	
+	/**
+	 * The total number of weights in the neural network
+	 */
 	val weightsLength = {
 		val lengths = hiddenLayers ++ Seq(outputKeys.size)
 		var prevLayerLength = inputKeys.size
@@ -39,6 +42,15 @@ abstract class SimpleNeuralNetwork[T](
 			prevLayerLength = layerLength;
 		}
 		weights
+	}
+
+	/**
+	 * The total number of biases in the neural network 
+	 * (1 for each neuron with an input combination function, so 
+	 * 1 for each hidden and output neuron)
+	 */
+	val biasesLength = {
+		outputKeys.size + hiddenLayers.reduceLeft(_ + _)
 	}
 
 	//Constructor initializes the NeuralNetwork with inputs, hidden layers, and outputs
@@ -67,6 +79,8 @@ abstract class SimpleNeuralNetwork[T](
 				}
 			}
 		}
+		
+		determineLayers()
 	}
 	
 	/**
@@ -89,6 +103,7 @@ abstract class SimpleNeuralNetwork[T](
 	 */
 	def setWeights(weights:IndexedSeq[Double]){
 		require(weightsLength <= weights.size, "Expected at least "+weightsLength+" weights, but got "+weights.size+".")
+		determineLayers()
 		
 		var weightIndex = 0
 		for(layer <- _neuronLayers){
@@ -108,5 +123,110 @@ abstract class SimpleNeuralNetwork[T](
 			}
 		}
 	}
+	
+		/**
+	 * Updates all the weights in the neural network
+	 * @param weights an IndexedSeq[Double] that contains all the weights for all inputs to all
+	 * neurons in the network. The order of weights is constant starting from the first hidden
+	 * layer's first neuron and updating all of it's input weights (order specified by inputKeys
+	 * constructor argument). The update will continue until all weights have been updated for 
+	 * that layer, and then move onto the next layer. Lastly, the output layer will be updated
+	 * (in the order specified by outputKeys constructor agrument).
+	 */
+	def getWeights():IndexedSeq[Double] = {
+		var weights:IndexedSeq[Double] = IndexedSeq()
+		determineLayers()
+		
+		for(layer <- _neuronLayers){
+			for(neuron <- layer){
+				weights = weights ++ neuron.inputsWithWeights.map(_._2)
+			}
+		}
+		
+		for(key <- outputKeys){
+			val neuron = _outputMap(key);
+			weights = weights ++ neuron.inputsWithWeights.map(_._2)
+		}
+		
+		weights
+	}
 
+	/**
+	 * Get the bias value of each neuron in a sequence, starting with
+	 * the first neuron in the first hidden layer and ending with the
+	 * last ouput neuron in the output layer
+	 */
+	def getBiases():Seq[Double] = {
+		determineLayers()
+		
+		val outputLayer:Seq[Neuron] = outputKeys.map(key => _outputMap(key))
+		val combineLayers:Seq[Seq[Neuron]] = _neuronLayers ++ Seq(outputLayer)
+		
+		combineLayers.flatten.map(_.bias)
+	}
+	
+	/**
+	 * Set the bias value of each neuron from the sequence, starting with
+	 * the first neuron in the first hidden layer and ending with the
+	 * last ouput neuron in the output layer
+	 */
+	def setBiases(biases:Seq[Double]):Unit = {
+		require(biasesLength <= biases.size, "Expected at least "+biasesLength+" weights, but got "+biases.size+".")
+		determineLayers()
+		
+		val outputLayer:Seq[Neuron] = outputKeys.map(key => _outputMap(key))
+		val combineLayers:Seq[Seq[Neuron]] = _neuronLayers ++ Seq(outputLayer)
+		
+		//Zip the bias with the neuron and then set all the biases
+		for(neuronBias <- combineLayers.flatten.zip(biases)){
+			val(neuron,bias) = neuronBias
+			neuron.bias = bias
+		}
+	}
+	
+	override def calculate(inputs:Map[T,Double]):Map[T,Double] = {
+		neurons.foreach(neuron => neuron.reset())
+		outputs.foreach(neuron => neuron.reset())
+		super.calculate(inputs)
+	}
+
+	
+	
+	override def createMemory():MemoryNeuron = {
+		throw new UnsupportedOperationException("Simple networks do not have MemoryNeurons.");
+	}
+	
+	
+	private implicit def castAsActivationNeuron(neuron:Neuron):NeuronInputCombination = {
+		neuron.asInstanceOf[NeuronInputCombination]
+	}
+	
+	override def toString():String = {
+		val sb = new StringBuffer()
+		sb.append("Network{\n")
+		.append("  Inputs(").append(inputKeys.size).append(")\n")
+		.append("  Hidden Layers (").append(hiddenLayers.size).append(")\n")
+		
+		var i = 1
+		for(layer <- _neuronLayers){
+			sb.append("    Layer(").append(i).append(")\n")
+			for(neuron <- layer){
+				sb.append("      N(")
+				.append(neuron.inputsWithWeights.map(_._2).mkString("w(",",",")"))
+				.append("->b(").append(neuron.bias).append("))")
+				.append("\n")
+			}
+			i += 1
+		}
+		
+		sb.append("  Output Layer(").append(outputKeys.size).append(")\n")
+		for(n <- outputKeys.map(key => _outputMap(key))){
+			sb.append("    O(")
+			.append(n.inputsWithWeights.map(_._2).mkString("w(",",",")"))
+			.append("->b(").append(n.bias).append("))")
+			.append("\n")
+		}
+		
+		sb.toString
+	}
 }

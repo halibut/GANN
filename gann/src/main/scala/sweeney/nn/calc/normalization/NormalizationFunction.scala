@@ -15,4 +15,6 @@ trait NormalizationFunction {
 	}
 	
 	def normalize(input:Double, minInput:Double, maxInput:Double, minOutput:Double = 0, maxOutput:Double = 1):Double;
+	
+	def derivative(input:Double, minInput:Double, maxInput:Double, minOutput:Double = 0, maxOutput:Double = 1):Double;
 }

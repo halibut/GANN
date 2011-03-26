@@ -1,15 +1,16 @@
 package sweeney.nn
 
 import neuron._
+import scala.actors.Futures._
 
 class NeuralNetwork[T] {
 	
 	private var _layersDirty = true
 	
-	private var _inputMap:Map[T,InputNeuron] = Map()
-	private var _outputMap:Map[T,OutputNeuron] = Map()
-	private var _neuronMap:Map[T,Neuron] = Map()
-	private var _neuronLayers:List[List[Neuron]] = List()
+	protected var _inputMap:Map[T,InputNeuron] = Map()
+	protected var _outputMap:Map[T,OutputNeuron] = Map()
+	protected var _neuronMap:Map[T,Neuron] = Map()
+	protected var _neuronLayers:List[List[Neuron]] = List()
 
 	/** Add an InputNeuron to the network */
 	def addInput(key:T,neuron:InputNeuron):Unit = {	_inputMap += (key -> neuron) }
@@ -67,6 +68,7 @@ class NeuralNetwork[T] {
 	
 	protected def determineLayers(){
 		if(_layersDirty){
+			println("Network layers are dirty. Calculating...")
 			var nonTraversed:List[Neuron] = _neuronMap.values.toList
 			var prevLayer:List[SimpleNeuron] = _inputMap.values.toList
 			
@@ -94,6 +96,8 @@ class NeuralNetwork[T] {
 	 * @return a map containing the output neuron key-value pairs
 	 */
 	def calculate(inputValues:Map[T,Double]):Map[T,Double] = {
+		determineLayers()
+		
 		for(keyAndVal <- inputValues){
 			val (key,inputValue) = keyAndVal
 			val inputNeuron = inputs(key)
@@ -104,21 +108,40 @@ class NeuralNetwork[T] {
 		for(layer <- _neuronLayers){
 			//Temporarily story the values of all
 			//input neurons for this layer
-			for(neuron <- layer){
-				neuron.getValuesOfInputs()
+			//This can be done in parallel
+			val loadInputsFutures = for(neuron <- layer) yield {
+				future{	neuron.loadInputValues() }
 			}
+			awaitAll(1000000,loadInputsFutures:_*)
+			
 			
 			//Now, calculate the output value for 
 			//all the neurons in the layer
-			for(neuron <- layer){
-				neuron.getValue
+			//This can also be done in parallel
+			val calcFutures = for(neuron <- layer) yield {
+				future{	neuron.getValue	}
 			}
+			awaitAll(1000000,calcFutures:_*)
 		}
 		
-		_outputMap.map{(keyAndNeuron) =>
+		val out = _outputMap.map{(keyAndNeuron) =>
 			val (key, neuron) = keyAndNeuron
-			neuron.getValuesOfInputs()
+			neuron.loadInputValues()
 			(key, neuron.getValue)
 		}
+		out
+	}
+	
+	def createInput():InputNeuron = {
+		new InputNeuron()
+	}
+	def createOutput():OutputNeuron = {
+		new OutputNeuron()
+	}
+	def createCombiner():CombinerNeuron = {
+		new CombinerNeuron()
+	}
+	def createMemory():MemoryNeuron = {
+		new MemoryNeuron();
 	}
 }

@@ -1,0 +1,25 @@
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>sweeney.gann</groupId>
+	<artifactId>gann-examples</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>jar</packaging>
+	<name>GANN-Examples</name>
+	<inceptionYear>2011</inceptionYear>
+	
+	<parent>
+		<groupId>sweeney.gann</groupId>
+		<artifactId>gann-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+	
+	<dependencies>
+		<dependency>
+			<groupId>sweeney.gann</groupId>
+			<artifactId>gann</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+	</dependencies>
+  
+</project>

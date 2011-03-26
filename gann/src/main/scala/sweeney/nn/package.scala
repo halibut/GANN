@@ -18,7 +18,7 @@ package object nn {
 	
 	//Convenience methods for creating Output Neurons
 	def Output[T](key:T)(initFunc:(OutputNeuron)=>Unit)(implicit nn:NeuralNetwork[T]):OutputNeuron = {
-		val newNeuron = new OutputNeuron();
+		val newNeuron = nn.createOutput()
 		initFunc(newNeuron);
 		nn.addOutput(key, newNeuron)
 		newNeuron
@@ -29,7 +29,7 @@ package object nn {
 	
 	//Convenience Methods for creating Input Neurons
 	def Input[T](key:T)(implicit nn:NeuralNetwork[T]):InputNeuron = {
-		val newNeuron = new InputNeuron();
+		val newNeuron = nn.createInput()
 		nn.addInput(key, newNeuron)
 		newNeuron
 	}
@@ -40,13 +40,13 @@ package object nn {
 	
 	//Convenience Methods for creating other types of neurons (Combiner and Memory)
 	def Combiner[T](key:T)(initFunc:(CombinerNeuron)=>Unit)(implicit nn:NeuralNetwork[T]):Neuron = {
-		val newNeuron = new CombinerNeuron();
+		val newNeuron = nn.createCombiner()
 		initFunc(newNeuron);
 		nn.addNeuron(key, newNeuron)
 		newNeuron
 	}
 	def Memory[T](key:T)(initFunc:(MemoryNeuron)=>Unit)(implicit nn:NeuralNetwork[T]):Neuron = {
-		val newNeuron = new MemoryNeuron();
+		val newNeuron = nn.createMemory();
 		initFunc(newNeuron);
 		nn.addNeuron(key, newNeuron)
 		newNeuron
@@ -65,7 +65,7 @@ package object nn {
 	}
 	
 	//Convenience methods for setting up neurons with inputs
-	def addInput(weight:Double)(input:SimpleNeuron)(implicit ni:NeuronInputs):Unit = 
+	def addInput(weight:Double=0.0)(input:SimpleNeuron)(implicit ni:NeuronInputs):Unit = 
 		ni.addInput((input, weight))
 	def clearInputs()(implicit ni:NeuronInputs):Unit = 
 		ni.clearInputs

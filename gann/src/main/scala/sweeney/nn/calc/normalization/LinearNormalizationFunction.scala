@@ -6,7 +6,7 @@ package sweeney.nn.calc.normalization
  * interpolated between minOutput and maxOutput
  */
 class LinearNormalizationFunction extends NormalizationFunction{
-	def normalize(input:Double, minInput:Double, maxInput:Double, minOutput:Double = 0, maxOutput:Double = 1):Double = {
+	override def normalize(input:Double, minInput:Double, maxInput:Double, minOutput:Double = 0, maxOutput:Double = 1):Double = {
 		val (iMin,iMax) = realMinMax(minInput, maxInput)
 		val (oMin,oMax) = realMinMax(minOutput, maxOutput)
 		
@@ -21,5 +21,18 @@ class LinearNormalizationFunction extends NormalizationFunction{
 			adjOutput(linterp, oMin, oMax)
 		}
 	}
+	
+	override def derivative(input:Double, minInput:Double, maxInput:Double, minOutput:Double = 0, maxOutput:Double = 1):Double = {
+		val (iMin,iMax) = realMinMax(minInput, maxInput)
+		val (oMin,oMax) = realMinMax(minOutput, maxOutput)
+		
+		if(input < iMin || input > iMax){
+			0.0		//outside the input range, the slope is zero
+		}
+		else{
+			(oMax-oMin) / (iMax-iMin)	//Inside the range the slope is linear
+		}
+	}
+	
 }
 object LinearNormalizationFunction extends LinearNormalizationFunction

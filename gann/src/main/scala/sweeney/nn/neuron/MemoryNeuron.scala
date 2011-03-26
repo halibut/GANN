@@ -12,4 +12,8 @@ class MemoryNeuron extends Neuron with NeuronMemory{
 		val rememberedValue = getRememberedValue
 		normalizeOutput(rememberedValue)
 	}
+	
+	def reset():Unit = {
+		clearMemory()
+	}
 }
