@@ -4,7 +4,7 @@ import nn.neuron._
 import nn.calc.combination._
 
 package object nn {
-
+	
 	def NeuralNetwork[T](initFunc:(NeuralNetwork[T])=>Unit):NeuralNetwork[T] = {
 		val network = new NeuralNetwork[T];
 		initFunc(network);

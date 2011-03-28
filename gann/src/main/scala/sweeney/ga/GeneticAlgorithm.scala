@@ -1,8 +1,16 @@
 package sweeney.ga
 
-abstract class GeneticAlgorithm[I](_initialPopulation:Seq[GeneticCode[I]],_initialGeneration:Int = 0) {
+trait GeneticAlgorithm[I] {
 
-	val populationSize = _initialPopulation.size
+	val populationSize:Int;
+	
+	private var _currentPopulation:Seq[CodeFitness[I]] = null
+	private var _currentGeneration:Int = 0
+	
+	def initPopulation(pop:Seq[CodeFitness[I]], gen:Int = 0){
+		_currentPopulation = pop
+		_currentGeneration = gen
+	}
 	
 	/**
 	 * @return true if population should be sorted such that the higher the fitness
@@ -14,7 +22,7 @@ abstract class GeneticAlgorithm[I](_initialPopulation:Seq[GeneticCode[I]],_initi
 	/**
 	 * @return The rate of genetic mutation when the current generation reproduces
 	 */
-	def mutationRate:Double = { 0.01 }
+	def mutationRate:Double = { 0.1 }
 	
 	/**
 	 * @return The rate of genetic crossover when the current generation reproduces
@@ -27,13 +35,16 @@ abstract class GeneticAlgorithm[I](_initialPopulation:Seq[GeneticCode[I]],_initi
 	 */
 	def elitistPercentile = {0.01}
 	
+	def getPopulation() = {_currentPopulation}
+	def getGeneration() = {_currentGeneration}
+	
 	/**
-	 * Function that determines how "fit" the given individual
+	 * Function that determines the fitness of the the given individual
 	 * is toward solving the problem
-	 * @param individual the expressed GeneSeq
-	 * @return the fitness value
+	 * @return sequence of CodeFitness objects that map the 
+	 * GeneticCode with the fitness value
 	 */
-	def determineFitness(individual:I):Double;
+	def determinePopulationFitness(currentPopulation:Seq[GeneticCode[I]]):Seq[CodeFitness[I]];
 	
 	/**
 	 * Condition that tells the GeneticAlgorithm when it has produced a generation
@@ -43,58 +54,112 @@ abstract class GeneticAlgorithm[I](_initialPopulation:Seq[GeneticCode[I]],_initi
 	def stopCondition():Boolean;
 
 	/**
+	 * User-defined logic that runs before the new generation is created
+	 */
+	def beforeNewGenerationCreated():Unit = {};
+	
+	/**
+	 * User-defined logic that runs after the current generation is created
+	 */
+	def afterNewGenerationCreated():Unit = {};
+	
+	/**
 	 * User-defined logic that runs before the current generation is tested
 	 */
-	def beforeGenerationTesting(currentPopulation:Seq[GeneticCode[I]],currentGeneration:Int):Unit = {};
+	def beforeGenerationTested():Unit = {};
 	
 	/**
 	 * User-defined logic that runs after the current generation is tested
 	 */
-	def afterGenerationTesting(currentPopulationAndFitness:Seq[(GeneticCode[I],Double)],currentGeneration:Int):Unit = {};
+	def afterGenerationTested():Unit = {};
 	
-	private def createNewGeneration(currentPopulationAndFitness:Seq[(GeneticCode[I],Double)]):Seq[GeneticCode[I]] = {
-		//Sort the population such that more fit individuals are at
-		//the front of the list
-		val sortedPopulation = currentPopulationAndFitness.sortWith{ (a,b) =>
-			if(highFitnessIsBetter)
-				a._2 > b._2
-			else
-				a._2 < b._2
-		}
-		
-		val elites = math.max(0,math.min(populationSize, (populationSize * elitistPercentile).asInstanceOf[Int]))
-		
+	private def createNewGeneration():Unit = {
 		var newGen:Seq[GeneticCode[I]] = Seq()
 		
-		//TODO add the required new Individuals to this generation's population
+		//Convert the population to an indexed seq because it will by faster
+		//to search based on index
+		val curpop = _currentPopulation.toIndexedSeq
 		
-		newGen
+		//Add unmodified elites to the new generation
+		val elites = math.max(0,math.min(populationSize, (populationSize * elitistPercentile).asInstanceOf[Int]))
+		if(_currentGeneration > 0 && elites > 0)
+			newGen = newGen ++ curpop.slice(0, elites).map(_.code).distinct
+		
+		//Calculate the roulette sequence that will be used for selection of mates
+		val roulette:IndexedSeq[Double] = if(_currentGeneration == 0){
+			(0 until populationSize).map(_.asInstanceOf[Double]).toIndexedSeq
+		}else{
+			var tot = 0.0
+			val rou = for(codeFitness <- curpop) yield {
+				tot += codeFitness.fitness
+				tot
+			}
+			rou.toIndexedSeq
+		}
+		
+		val zippedRoulette = curpop.zip(roulette)
+		val eliteSize = newGen.size
+		val offspring = for(i <- 0 until (populationSize - eliteSize)) yield{
+			val m1 = selectMate(zippedRoulette)
+			val m2 = selectMate(zippedRoulette)
+			val child = m1 crossover m2
+			
+			if(mutationRate > math.random)
+				child.mutate(.5, math.random * mutationRate)
+			else
+				child
+		}
+		
+		newGen = newGen ++ offspring
+
+		_currentPopulation = newGen.map(CodeFitness(_,0))
+		_currentGeneration += 1
+	}
+
+	private	def selectMate(roulette:IndexedSeq[(CodeFitness[I],Double)]):GeneticCode[I] = {
+		val totalRoulette = roulette.last._2
+		val rnd = totalRoulette * math.random
+
+		val revRou = roulette.reverse
+		val size = roulette.size
+		var i = 0
+		while(i < size && revRou(i)._2 > rnd){i+=1}
+		
+		revRou(i-1)._1 .code
 	}
 	
 	/**
 	 * Start running the Genetic Algorithm
 	 */
-	final def run(){
-		
-		var currentPopulation = _initialPopulation
-		var currentGeneration = _initialGeneration 
+	final def trainGenerations(){
+		if(_currentPopulation == null || _currentPopulation.size != populationSize)
+			throw new IllegalStateException("Population must be initialized before training.")
 		
 		while(!stopCondition()){
+			//User defined function executes before the new generation is created
+			beforeNewGenerationCreated()
+			
+			//Create the new generation
+			createNewGeneration()
+			
+			//User defined function executes after the new generation is created
+			afterNewGenerationCreated()
+			
 			//Run use-defined function before any testing takes place
-			beforeGenerationTesting(currentPopulation, currentGeneration)
+			beforeGenerationTested()
 			
 			//Determine fitness of entire population
-			val currentPopAndFitness = for(geneSeq <- currentPopulation) yield {
-				val individual = geneSeq.expressedIndividual
-				val fitness = determineFitness(individual)
-				(geneSeq,fitness)
-			}
+			val testedPop = determinePopulationFitness(_currentPopulation.map(_.code))
+			require(testedPop.size == populationSize, "Expected "+populationSize+" population size, but got "+testedPop.size)
+			_currentPopulation = testedPop
+			
+			//Sort the population such that more fit individuals are at
+			//the front of the list
+			_currentPopulation = _currentPopulation.sortWith{ (a,b) =>
+				if(highFitnessIsBetter)	a.fitness > b.fitness else a.fitness < b.fitness }
 			
 			//Run user-defined function after testing takes place
-			afterGenerationTesting(currentPopAndFitness, currentGeneration)
-
-			//Create new population from the old one
-			currentPopulation = createNewGeneration(currentPopAndFitness)
+			afterGenerationTested()
 		}
 	}
 	

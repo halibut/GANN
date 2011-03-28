@@ -9,18 +9,13 @@ import scala.math
  * Trait that maps a Chromosomes to an actual instance of the object
  * @tparam I the type of the expressed object or individual
  */
-class SimpleGeneticCode(val chromosome:Chromosome[Double], 
-		val mutationRange:(Double,Double) = (-.5, 0.5)) extends GeneticCode[IndexedSeq[Double]] {
-	
-	require(mutationRange._1 <= mutationRange._2, "Mutation range should have lower number first, and higher number second. Found: "+mutationRange)
-	private val _mutationMagnitude = mutationRange._2 - mutationRange._1
-	private val _mutationMidpoint = _mutationMagnitude / 2
+class SimpleGeneticCode(val chromosome:IndexedSeq[Double]) extends GeneticCode[IndexedSeq[Double]] {
 	
 	/**
 	 * @return the expression of the genetic code as an instantiated object.
 	 */
 	override def expressedIndividual:IndexedSeq[Double] = {
-		chromosome.geneSeq
+		chromosome
 	}
 	
 	/**
@@ -32,13 +27,11 @@ class SimpleGeneticCode(val chromosome:Chromosome[Double],
 	 * @return the new mutated GeneticCode
 	 */
 	override def mutate(mutationRatio:Double,mutationAmount:Double):SimpleGeneticCode = {
-		val maxMagnitude = _mutationMagnitude * mutationAmount
-		val halfMagnitude = maxMagnitude * 0.5
-		val minMutation = _mutationMidpoint - halfMagnitude
+		val minMutation = - mutationAmount / 2
 		
-		val newGeneSeq = chromosome.geneSeq.map{ gene =>
+		val newGeneSeq = chromosome.map{ gene =>
 			if(mutationRatio >= math.random){
-				val mutation = minMutation + math.random * maxMagnitude
+				val mutation = minMutation + math.random * mutationAmount
 				gene + mutation
 			}
 			else{
@@ -46,7 +39,7 @@ class SimpleGeneticCode(val chromosome:Chromosome[Double],
 			}
 		}
 		
-		new SimpleGeneticCode(new Chromosome(newGeneSeq),mutationRange)
+		new SimpleGeneticCode(newGeneSeq)
 	}
 	
 	/**
@@ -55,10 +48,10 @@ class SimpleGeneticCode(val chromosome:Chromosome[Double],
 	 * @return the new crossovered GeneticCode
 	 */
 	override def crossover(mate:GeneticCode[IndexedSeq[Double]]):SimpleGeneticCode = {
-		val gSeq1 = chromosome.geneSeq
-		val gSeq2 = chromosome.geneSeq
+		val gSeq1 = chromosome
+		val gSeq2 = mate.expressedIndividual
 		
-		val maxInd = chromosome.geneSeq.size
+		val maxInd = chromosome.size
 		val crossoverRange = Seq(math.random,math.random).sortWith(_ < _)
 			.map(value => (maxInd * value).asInstanceOf[Int])
 			
@@ -66,6 +59,17 @@ class SimpleGeneticCode(val chromosome:Chromosome[Double],
 			gSeq2.slice(crossoverRange(0), crossoverRange(1)) ++
 			gSeq1.slice(crossoverRange(1), maxInd) 
 		
-		new SimpleGeneticCode(new Chromosome(newGeneSeq),mutationRange)
+		new SimpleGeneticCode(newGeneSeq)
+	}
+	
+	override def equals(other:Any):Boolean = {
+		other match{
+			case o:SimpleGeneticCode => o.chromosome == chromosome
+			case _ => false
+		}
+	}
+	
+	override def hashCode:Int = {
+		chromosome.hashCode
 	}
 }

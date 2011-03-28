@@ -97,6 +97,7 @@ class NeuralNetwork[T] {
 	 */
 	def calculate(inputValues:Map[T,Double]):Map[T,Double] = {
 		determineLayers()
+		resetNetork();
 		
 		for(keyAndVal <- inputValues){
 			val (key,inputValue) = keyAndVal
@@ -131,6 +132,13 @@ class NeuralNetwork[T] {
 		}
 		out
 	}
+	
+	/**
+	 * Gets called at the beginning of each call to the calculate method,
+	 * and provides a chance for implementing networks to reset any internal
+	 * state before calculating new values
+	 */
+	def resetNetork():Unit = { }
 	
 	def createInput():InputNeuron = {
 		new InputNeuron()

@@ -15,7 +15,7 @@ object XORBackProp {
 			(Map("1" -> 0.0, "2" -> 1.0),Map("out" -> 1.0)),
 			(Map("1" -> 1.0, "2" -> 1.0),Map("out" -> 0.0)))
   
- 		val network = new BackPropNetwork(inputKeys,outputKeys,hiddenLayers) with StringKey
+ 		val network = new Perceptron(inputKeys,outputKeys,hiddenLayers) with BackPropagation[String] with StringKey;
  		
  		//Initialize weights to random values
  		network.setWeights(for(i <- 0 until network.weightsLength) yield {3 * math.random - 1})
@@ -23,17 +23,13 @@ object XORBackProp {
  		
  		var error = 0.0
  		var i = 0
- 		var learnRate = .4
- 		val iterations = 100000
- 		while(i == 0 || (error >= 0.00001 && i < iterations) ){
- 			//val mult = if(i < iterations / 2) .3 else .3
- 			//learnRate = .1 + mult * (i) / iterations
- 			
- 			val prevErr = error
+ 		var learnRate = .3
+ 		val iterations = 10000
+ 		while(i == 0 || (error >= 0.0001 && i < iterations) ){
  			error = 0
  			
  			var dataSet = if(1 % 2 == 0) testData else testData.reverse
- 			for(data <- dataSet){
+ 			for(data <- testData){
  				val actual = network.calculate(data._1)("out")
  				error += math.abs(data._2("out") - actual)
  				network.train(data._2, learnRate)
