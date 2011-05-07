@@ -68,7 +68,6 @@ class NeuralNetwork[T] {
 	
 	protected def determineLayers(){
 		if(_layersDirty){
-			println("Network layers are dirty. Calculating...")
 			var nonTraversed:List[Neuron] = _neuronMap.values.toList
 			var prevLayer:List[SimpleNeuron] = _inputMap.values.toList
 			
@@ -109,20 +108,17 @@ class NeuralNetwork[T] {
 		for(layer <- _neuronLayers){
 			//Temporarily story the values of all
 			//input neurons for this layer
-			//This can be done in parallel
-			val loadInputsFutures = for(neuron <- layer) yield {
-				future{	neuron.loadInputValues() }
+			//This could potentially be done in parallel
+			for(neuron <- layer) {
+				neuron.loadInputValues()
 			}
-			awaitAll(1000000,loadInputsFutures:_*)
-			
 			
 			//Now, calculate the output value for 
 			//all the neurons in the layer
-			//This can also be done in parallel
-			val calcFutures = for(neuron <- layer) yield {
-				future{	neuron.getValue	}
+			//This could also be done in parallel
+			for(neuron <- layer) {
+				neuron.getValue
 			}
-			awaitAll(1000000,calcFutures:_*)
 		}
 		
 		val out = _outputMap.map{(keyAndNeuron) =>

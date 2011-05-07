@@ -1,6 +1,4 @@
-package sweeney.netimpl.genetic.simple
-
-import sweeney.ga._
+package sweeney.ga
 
 class WeightBiasGeneticCode(val weights:ChromosomeDouble,val biases:ChromosomeDouble) extends GeneticCode[WeightBiasGeneticCode]{
 	
@@ -9,7 +7,7 @@ class WeightBiasGeneticCode(val weights:ChromosomeDouble,val biases:ChromosomeDo
 	}
 	
 	override def mutate(mutationRatio:Double,mutationAmount:Double):WeightBiasGeneticCode = {
-		val newWeights = weights.mutate(mutationRatio, mutationAmount * .25)
+		val newWeights = weights.mutate(mutationRatio, mutationAmount)
 		val newBiases = biases.mutate(mutationRatio, mutationAmount * .25)
 		new WeightBiasGeneticCode(newWeights, newBiases)
 	}

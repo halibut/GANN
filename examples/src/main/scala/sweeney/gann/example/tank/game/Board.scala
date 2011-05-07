@@ -2,7 +2,7 @@ package sweeney.gann.example.tank.game
 
 import scala.collection.mutable.ArrayBuffer
 
-class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val height:Double=20.0) {
+class Board(val numTargets:Int, val numMines:Int = 0, val size:Double=20.0) {
 	type Vec = (Double,Double)
 	type Point = (Double,Double)
 	type Line = (Double,Double,Double)
@@ -10,18 +10,30 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 	require(numTargets > 0, "There must be at least 1 target. Found:"+numTargets)
 	require(numMines >= 0, "Number of mines must be positive. Found:"+numMines)
 	
+	val mineScoreDec = 5
+	val targetScoreInc = 3
+	
 	val radius = 0.5
-	val maxX = width/2.0
+	val maxX = size/2.0
 	val minX = -maxX
-	val maxY = height/2.0
+	val maxY = size/2.0
 	val minY = -maxY
 	
 	private var _score:Int = 0
 	private var _tank:Point = (0.0,0.0)
+	private var _orientation:Double = 0.0
 	private var _targets:ArrayBuffer[Point] = null
 	private var _remainingTargetIndexes:Seq[Int] = null
 	private var _remainingMineIndexes:Seq[Int] = null
 	reset(true)
+	
+	def this(targets:Seq[(Double,Double)],mines:Seq[(Double,Double)],size:Double){
+		this(targets.size,mines.size,size)
+		
+		//default constructor does a reset, so all we need to do
+		//is set the positions of the targets and mines
+		_targets = ArrayBuffer((targets ++ mines):_*)
+	}
 	
 	def getClosestTargets():Seq[Point] = {
 		val remainTargs = _remainingTargetIndexes.map{i=>_targets(i)}
@@ -33,8 +45,21 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 		return getClosests(remainMines)
 	}
 	
+	def getCompletedTargets():Seq[Point] = {
+		val completedInds = (0 until numTargets).filter(!_remainingTargetIndexes.contains(_))
+		val completedTargets = completedInds.map((i)=>_targets(i))
+		return getClosests(completedTargets)
+	}
+	
+	def getExplodedMines():Seq[Point] = {
+		val explodedMineInds = (numTargets until numTargets+numMines).filter(!_remainingMineIndexes.contains(_))
+		val explodedMine = explodedMineInds.map((i)=>_targets(i))
+		return getClosests(explodedMine)
+	}
+	
 	def getTank = _tank
 	def getScore = _score
+	def getOrientation = _orientation
 	
 	def moveTank(moveVec:Vec):Unit = {
 		if(moveVec == (0.0,0.0))
@@ -46,9 +71,37 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 		else
 			moveVec
 			
-		val newPos = {
-			var tmpX = _tank._1 + vec._1
-			var tmpY = _tank._2 + vec._2
+		updateGameWithNewPos(vec._1,vec._2)
+	}
+	
+	def moveTank(leftTread:Double,rightTread:Double):Unit = {
+		if(leftTread == 0.0 && rightTread == 0.0)
+			return;
+		
+		val rNorm = math.min(1.0, math.max(-1.0, rightTread))
+		val lNorm = math.min(1.0, math.max(-1.0, leftTread))
+		
+		val diff = rightTread - leftTread;
+		val diffNorm = (rNorm - lNorm) / 2.0
+		
+		val moveDist = 
+		    if(diffNorm > 0.0) (1.0 - diffNorm)
+			else (-1.0 - diffNorm) 
+		
+		_orientation = _orientation + (math.Pi * diffNorm * 0.5)	
+		
+		val dPos = {
+			(math.cos(_orientation) * moveDist,
+			math.sin(_orientation) * moveDist)
+		}
+		
+		updateGameWithNewPos(dPos._1,dPos._2)
+	}
+	
+	private def updateGameWithNewPos(dx:Double,dy:Double){
+	    val newPos = {
+			var tmpX = _tank._1 + dx
+			var tmpY = _tank._2 + dy
 			if(tmpX > maxX - radius) tmpX = maxX - radius;
 			if(tmpX < minX + radius) tmpX = minX + radius;
 			if(tmpY > maxY - radius) tmpY = maxY - radius;
@@ -56,12 +109,10 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 			(tmpX, tmpY)
 		}
 		
-		val moveDist = dist(_tank,newPos)
-		
 		val (targetsDestroyed,minesHit) = updateTargets(_tank,newPos)
 		
 		_tank = newPos
-		_score += targetsDestroyed * 3 - minesHit
+		_score += targetsDestroyed * targetScoreInc - minesHit * mineScoreDec
 	}
 	
 	def reset(randomizeTargets:Boolean = false){
@@ -71,7 +122,17 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 		_remainingTargetIndexes = (0 until numTargets).toSeq
 		_remainingMineIndexes = (numTargets until numTargets+numMines).toSeq
 		_tank = (0.0,0.0)
-		_score = numMines
+		_score = numMines * mineScoreDec
+	}
+	
+	override def clone():Board = {
+		val newBoard = new Board(numTargets, numMines, size)
+		newBoard._score = this._score
+		newBoard._tank = this._tank
+		newBoard._targets = ArrayBuffer(this._targets:_*)
+		newBoard._remainingTargetIndexes = Seq(this._remainingTargetIndexes:_*)
+		newBoard._remainingMineIndexes = Seq(this._remainingMineIndexes:_*)
+		newBoard
 	}
 	
 	private def updateTargets(curPos:Point,newPos:Point):(Int,Int) = {
@@ -157,7 +218,7 @@ class Board(val numTargets:Int, val numMines:Int = 0, val width:Double=20.0, val
 	
 	private def randomTargets():ArrayBuffer[Point] = {
 		val min = (minX + radius, minY + radius)
-		val mul = (width - radius * 2, height - radius * 2)
+		val mul = (size - radius * 2, size - radius * 2)
 		var i = 0
 		var targs = new ArrayBuffer[Point](numTargets+numMines)
 		while(i < numTargets+numMines){

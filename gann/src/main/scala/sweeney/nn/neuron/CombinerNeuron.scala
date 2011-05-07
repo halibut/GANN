@@ -10,7 +10,7 @@ class CombinerNeuron extends Neuron with NeuronInputCombination{
 	protected var _normalizationFunc:NormalizationFunction = SigmoidNormalizationFunction
 	
 	def getValue:Double = {
-		val combinedValue = _combineFunc.combineInputs(_tempInputValues)
+		val combinedValue = getCombinedInputs()
 		normalizeOutput(combinedValue)
 	}
 	

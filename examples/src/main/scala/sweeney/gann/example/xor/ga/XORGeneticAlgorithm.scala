@@ -1,15 +1,15 @@
 package sweeney.gann.example.xor.ga
 
+import sweeney.netimpl.genetic.testing.ErrorBasedTesting
 import sweeney.ga._
 
-import sweeney.netimpl.genetic.simple._
+import sweeney.netimpl.genetic._
+import sweeney.netimpl.genetic.nettype._
 import sweeney.nn._
 
 object XORGeneticAlgorithm {
 	def main(args : Array[String]) : Unit = {
-		val inputKeys = Seq("1","2");
-		val outputKeys = Seq("out");
-		val hiddenLayers = Seq(4,2)
+		
 		
 		val xorTestData = IndexedSeq(
 			(Map("1" -> 1.0, "2" -> 0.0),Map("out" -> 1.0)),
@@ -20,45 +20,55 @@ object XORGeneticAlgorithm {
 		val popSize = 1000
 		val maxGen = 10000
 			
- 		val network = new GAPerceptron[IndexedSeq[Double],String](inputKeys,outputKeys,hiddenLayers) with StringKey{
- 			
- 			override val populationSize = popSize
- 			
+		val gann = new PagedGANN[IndexedSeq[Double],String, Perceptron[String]]() 
+						with ErrorBasedTesting[IndexedSeq[Double],String,Perceptron[String]]
+						with GAPerceptron[IndexedSeq[Double],String]{
+		  
+			override def getTestData = xorTestData
+		  
+			override val inputKeys = Seq("1","2");
+			override val outputKeys = Seq("out");
+			override val hiddenLayers = Seq(4,2);
+			
+			override val populationSize = popSize
  			override def mutationRate:Double = { 0.1 }
- 			override def mutationAmount:Double = { 0.5 }
+ 			override def mutationSize:Double = { 0.5 }
  			override def crossoverRate:Double = { 0.9 }
- 	 			
- 			override def setupNetworkForIndividual(individual:IndexedSeq[Double]){
- 				setInterleavedBiasesAndWeights(individual)
- 			}
  			
- 			override def getTestData:Seq[(Map[String,Double],Map[String,Double])] = {
- 				xorTestData
+ 			override def concurrentPages = 4
+ 			
+ 			override def setupNetworkForIndividual(network:Perceptron[String],individual:IndexedSeq[Double]){
+ 				network.setInterleavedBiasesAndWeights(individual)
  			}
-	
- 			override def stopCondition():Boolean = {
+			
+			override def stopCondition():Boolean = {
  				val gen = getGeneration
- 				val pop = getPopulation
- 				println(gen+" -> "+pop.slice(0,5).map(_.fitness)+" -> "+pop.reverse.slice(0,5).map(_.fitness))
- 				(gen >= maxGen || pop.head.fitness >= 1000000)
+ 				val topFive = getPopulation(0,5)
+ 				val bottomFive = getPopulation(populationSize - 5)
+ 				println(gen+" -> "+topFive.map(_._2)+" -> "+bottomFive.reverse.map(_._2))
+ 				(gen >= maxGen || topFive.head._2 >= 1000000)
  			}
- 		}
+			
+			override def generateHiddenNeuronKey(layer:Int,index:Int):String = {
+				"Hidden-"+layer+"-"+index;
+			}
+		}
 		
 		//Chromosome is interlaced biases and weights, so initial population 
 		//has to be the right length
-		val chromosomeLength = network.weightsLength + network.biasesLength
+		val chromosomeLength = gann.weightsLength + gann.biasesLength
 		val initialPop = for(i <- 0 until popSize) yield {
 			val chrom = (0 until chromosomeLength).map(i => 5 * math.random - 2.0).toIndexedSeq
 			val code = new ChromosomeDouble(chrom)
-			val cf = CodeFitness(code,0.0)
+			val cf = (code,1.0)
 			cf
 		}
  		
 		//Setup the genetic algorithm's initial population
-		network.initPopulation(initialPop,0)
+		gann.initPopulation(initialPop,0)
 		
 		//Train the network
-		network.trainNetwork()
+		val network = gann.trainNetwork()
 		
 		//Print the result
  		println(network.toString)

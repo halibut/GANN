@@ -1,50 +1,42 @@
 package sweeney.ga
 
-trait GeneticAlgorithm[I] {
+import persistence._
+import fitness._
+import gen._
 
-	val populationSize:Int;
-	
-	private var _currentPopulation:Seq[CodeFitness[I]] = null
-	private var _currentGeneration:Int = 0
-	
-	def initPopulation(pop:Seq[CodeFitness[I]], gen:Int = 0){
-		_currentPopulation = pop
-		_currentGeneration = gen
+trait GeneticAlgorithm[I] {
+	this: GAComponents[I] =>
+
+	def initPopulation(pop:Seq[(GeneticCode[I],Double)], gen:Int = 0){
+		popPersistence.addOrUpdatePopulation(gen,pop)
 	}
 	
 	/**
-	 * @return true if population should be sorted such that the higher the fitness
-	 * the better closer to the front of the list it will appear when sorted.
-	 * false if a low fitness value is better.
+	 * @return the size of each generation's population
 	 */
-	def highFitnessIsBetter = true
+	def populationSize:Int;
 	
 	/**
-	 * @return The rate of genetic mutation when the current generation reproduces
+	 * After a new generation is created, the previous one will be cleaned up
+	 * to save space. This property determines how many individuals in the previous 
+	 * generation will be persisted. The default is zero.
+	 * @return the number of previous generation individuals to perist
 	 */
-	def mutationRate:Double = { 0.1 }
+	def prevGenerationPopulationSize:Int = 0;
 	
 	/**
-	 * @return The rate of genetic crossover when the current generation reproduces
+	 * @param from The start index of the population to return (default is 0)
+	 * @param to The end index (exclusive) of the population to return (returns everything of left blank).
+	 * @return the current population set specifying a start and end range
 	 */
-	def crossoverRate:Double = { 0.7 }
+	def getPopulation(from:Int=0,to:Int=(-1)):Seq[(GeneticCode[I],Double)] = {
+		popPersistence.getPopulation(popPersistence.getLatestGeneration,from,to).getOrElse(null)
+	}
 	
 	/**
-	 * @return the percentile of the population that will be carried over to the new
-	 * generation without modification. Should be in the range of 0 to 1
+	 * @return the current generation
 	 */
-	def elitistPercentile = {0.01}
-	
-	def getPopulation() = {_currentPopulation}
-	def getGeneration() = {_currentGeneration}
-	
-	/**
-	 * Function that determines the fitness of the the given individual
-	 * is toward solving the problem
-	 * @return sequence of CodeFitness objects that map the 
-	 * GeneticCode with the fitness value
-	 */
-	def determinePopulationFitness(currentPopulation:Seq[GeneticCode[I]]):Seq[CodeFitness[I]];
+	def getGeneration():Int = {popPersistence.getLatestGeneration}
 	
 	/**
 	 * Condition that tells the GeneticAlgorithm when it has produced a generation
@@ -73,74 +65,28 @@ trait GeneticAlgorithm[I] {
 	 */
 	def afterGenerationTested():Unit = {};
 	
-	private def createNewGeneration():Unit = {
-		var newGen:Seq[GeneticCode[I]] = Seq()
-		
-		//Convert the population to an indexed seq because it will by faster
-		//to search based on index
-		val curpop = _currentPopulation.toIndexedSeq
-		
-		//Add unmodified elites to the new generation
-		val elites = math.max(0,math.min(populationSize, (populationSize * elitistPercentile).asInstanceOf[Int]))
-		if(_currentGeneration > 0 && elites > 0)
-			newGen = newGen ++ curpop.slice(0, elites).map(_.code).distinct
-		
-		//Calculate the roulette sequence that will be used for selection of mates
-		val roulette:IndexedSeq[Double] = if(_currentGeneration == 0){
-			(0 until populationSize).map(_.asInstanceOf[Double]).toIndexedSeq
-		}else{
-			var tot = 0.0
-			val rou = for(codeFitness <- curpop) yield {
-				tot += codeFitness.fitness
-				tot
-			}
-			rou.toIndexedSeq
-		}
-		
-		val zippedRoulette = curpop.zip(roulette)
-		val eliteSize = newGen.size
-		val offspring = for(i <- 0 until (populationSize - eliteSize)) yield{
-			val m1 = selectMate(zippedRoulette)
-			val m2 = selectMate(zippedRoulette)
-			val child = m1 crossover m2
-			
-			if(mutationRate > math.random)
-				child.mutate(.5, math.random * mutationRate)
-			else
-				child
-		}
-		
-		newGen = newGen ++ offspring
-
-		_currentPopulation = newGen.map(CodeFitness(_,0))
-		_currentGeneration += 1
-	}
-
-	private	def selectMate(roulette:IndexedSeq[(CodeFitness[I],Double)]):GeneticCode[I] = {
-		val totalRoulette = roulette.last._2
-		val rnd = totalRoulette * math.random
-
-		val revRou = roulette.reverse
-		val size = roulette.size
-		var i = 0
-		while(i < size && revRou(i)._2 > rnd){i+=1}
-		
-		revRou(i-1)._1 .code
-	}
-	
 	/**
 	 * Start running the Genetic Algorithm
 	 */
 	final def trainGenerations(){
-		if(_currentPopulation == null || _currentPopulation.size != populationSize)
+		val initPop = getPopulation()
+		if(initPop == null || initPop.size < populationSize)
 			throw new IllegalStateException("Population must be initialized before training.")
 		
 		while(!stopCondition()){
+			val curGen = popPersistence.getLatestGeneration
+			
 			//User defined function executes before the new generation is created
 			beforeNewGenerationCreated()
 			
 			//Create the new generation
-			createNewGeneration()
+			newGenCreator.createNewGeneration(populationSize)
+			val newGen = popPersistence.getLatestGeneration
+			require(newGen > curGen, "Creating a new generation should have updated the total number of generations.")
+			require(popPersistence.getPopulationSize(newGen).get == populationSize, "Expected "+populationSize+" population size, but got "+popPersistence.getPopulationSize(newGen).get)
+			
+			//delete some of the previous generation to make room
+			popPersistence.deletePopulation(curGen,prevGenerationPopulationSize)
 			
 			//User defined function executes after the new generation is created
 			afterNewGenerationCreated()
@@ -149,18 +95,16 @@ trait GeneticAlgorithm[I] {
 			beforeGenerationTested()
 			
 			//Determine fitness of entire population
-			val testedPop = determinePopulationFitness(_currentPopulation.map(_.code))
-			require(testedPop.size == populationSize, "Expected "+populationSize+" population size, but got "+testedPop.size)
-			_currentPopulation = testedPop
-			
-			//Sort the population such that more fit individuals are at
-			//the front of the list
-			_currentPopulation = _currentPopulation.sortWith{ (a,b) =>
-				if(highFitnessIsBetter)	a.fitness > b.fitness else a.fitness < b.fitness }
+			fitnessTester.determinePopulationFitness
 			
 			//Run user-defined function after testing takes place
 			afterGenerationTested()
 		}
 	}
-	
+}
+
+trait GAComponents[I] extends GAPopulationPersistenceProvider[I] with 
+		GAFitnessTestProvider[I] with GANewGenerationProvider[I] with
+		GASelectionProvider[I]{
+	this: GeneticAlgorithm[I] =>
 }

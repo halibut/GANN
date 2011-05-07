@@ -19,16 +19,16 @@ object UsageExample {
 				addInput(1.0){
 					Combiner("Intermediate1"){implicit n =>
 						combineFunc = SumCombination
-						addInput(1)(input1)
-						addInput(1)(input2)
+						addInput()(input1)
+						addInput()(input2)
 					}
 				}
 				
 				addInput(3.0){
 					Combiner("Intermediate2"){implicit n =>
 						combineFunc = AverageCombination
-						addInput(1)(input1)
-						addInput(1)(input2)
+						addInput()(input1)
+						addInput()(input2)
 					}
 				}
 				

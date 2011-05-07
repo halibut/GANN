@@ -19,4 +19,15 @@ class NoNormalizationFunctionTest {
 		
 	}
 	
+	@Test
+	def testNoNormalizationDerivative{
+		
+		for(i <- 0 until 10){
+			val rand = math.random * 20 - 10
+			
+			val n = normFunc.derivative(rand, 0, 0)
+			Assert.assertEquals(1.0, n, 0.0000001)
+		}
+		
+	}
 }

@@ -62,4 +62,50 @@ class LinearNormalizationFunctionTest {
 		
 		Assert.assertEquals(2.5, n, 0.0000001)
 	}
+	
+	@Test
+	def testDerivative{
+		val d = normFunc.derivative(.5, 0, 1)
+		Assert.assertEquals(1, d, 0.0000001)
+	}
+	
+	@Test
+	def testDerivative_min_max{
+		val min = normFunc.derivative(0, 0, 1)
+		val max = normFunc.derivative(1, 0, 1)
+		Assert.assertEquals(1, min, 0.0000001)
+		Assert.assertEquals(1, max, 0.0000001)
+	}
+	
+	@Test
+	def testDerivative_outsideRange{
+		val min = normFunc.derivative(-0.01, 0, 1)
+		val max = normFunc.derivative(1.01, 0, 1)
+		Assert.assertEquals(0, min, 0.0000001)
+		Assert.assertEquals(0, max, 0.0000001)
+	}
+	
+	@Test
+	def testDerivative_shifted{
+		//input range is from -1 to 1, output is from 1 to 5
+		//meaning slope of the line is 2
+		val d = normFunc.derivative(.5, -1, 1, 1, 5)
+		Assert.assertEquals(2, d, 0.0000001)
+	}
+	
+	@Test
+	def testDerivative_min_max_shifted{
+		val min = normFunc.derivative(-1, -1, 1, 1, 5)
+		val max = normFunc.derivative(1, -1, 1, 1, 5)
+		Assert.assertEquals(2, min, 0.0000001)
+		Assert.assertEquals(2, max, 0.0000001)
+	}
+	
+	@Test
+	def testDerivative_outsideRange_shifted{
+		val min = normFunc.derivative(-1.01, -1, 1, 1, 5)
+		val max = normFunc.derivative(1.01, -1, 1, 1, 5)
+		Assert.assertEquals(0, min, 0.0000001)
+		Assert.assertEquals(0, max, 0.0000001)
+	}
 }

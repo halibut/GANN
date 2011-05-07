@@ -15,11 +15,11 @@ trait GeneticCode[I] {
 	 * Returns a new modified GeneticCode
 	 * @param mutationRatio a proportion from 0 to 1 that specifies how much of the genetic
 	 * material should be mutated.
-	 * @param mutationAmount a proportion from 0 to 1 that specifies how much each individual 
-	 * mutated gene should differ from the original
+	 * @param mutationSize a value that specifies the maximum difference between an individual 
+	 * mutated gene and the original
 	 * @return the new mutated GeneticCode
 	 */
-	def mutate(mutationRatio:Double,mutationAmount:Double):GeneticCode[I];
+	def mutate(mutationRatio:Double,mutationSize:Double):GeneticCode[I];
 	
 	/**
 	 * Returns a new modified GeneticCode based on crossover with the mate
@@ -27,5 +27,8 @@ trait GeneticCode[I] {
 	 * @return the new mutated GeneticCode
 	 */
 	def crossover(mate:GeneticCode[I]):GeneticCode[I];
+	
+	
+	def fromIndividual(individual:I):GeneticCode[I];
 
 }
