@@ -24,14 +24,10 @@ object TankGA {
 			Seq("posX","posY","lastLeft","lastRight","lastUp","lastDown") ++ targKeys ++ mineKeys
 				
 		val outputKeys = Seq("left","right","up","down");
-		val hiddenLayers = Seq(inputKeys.size/2,15,10)
+		val hiddenLayers = Seq(inputKeys.size / 2, 15, 6)
 		
-		var gameBoards = Seq(
-		    new Board(numTargets=totalTargets,numMines=totalMines, size = 20),
-		    new Board(numTargets=totalTargets,numMines=totalMines, size = 20),
-		    new Board(numTargets=totalTargets,numMines=totalMines, size = 20),
-		    new Board(numTargets=totalTargets,numMines=totalMines, size = 20)
-		)
+		var gameBoards = (0 until 20).map(i=> new Board(numTargets=totalTargets,numMines=totalMines, size = 20))
+		
 		val gameTurns = 100
 		val popSize = 1000
 		val maxGen = 10000
@@ -40,7 +36,7 @@ object TankGA {
 		var mutAmt = resetMutAmt
 		var noChange = 0
 		var lastFit = 0.0
-		val origBoard = gameBoards(0)
+		val origBoard = new Board(numTargets=totalTargets,numMines=totalMines, size = 20)
 		
 		val gann = new TankNetwork(inputKeys,outputKeys,hiddenLayers){
 			
@@ -53,7 +49,7 @@ object TankGA {
  			override def crossoverRate:Double = { 0.7 }
  			
  			override def concurrentPages = 4
- 			override def pageSize = math.min(50, popSize / concurrentPages)
+ 			override def pageSize = math.min(10, popSize / concurrentPages)
 			
 			override def setupNetworkForIndividual(network:Perceptron[String],gc:WeightBiasGeneticCode){
 				network.setBiases(gc.biases.geneSeq)
@@ -82,45 +78,29 @@ object TankGA {
  				println(gen+" -> "+topFive.map(_._2)+" ("+mutAmt+") "+" -> "+bottomFive.reverse.map(_._2))
  				
  				val best = topFive.head
-// 				if(best._2 == lastFit){
-// 				    noChange += 1
-// 				}
-// 				else{
-// 				    noChange = 0
-// 				}
-//				if((noChange+1) % 5 == 0){
-//			    	mutAmt = mutAmt * 0.8
-//			    	if(mutAmt <= resetMutAmt * 0.001){
-//			    	    resetMutAmt = resetMutAmt * .25
-//			    	}
-//			    	if(noChange >= 50){
-//			    	    noChange == 0
-//			    	}
-//			    	println("Mutation amount = " + mutAmt + " ("+noChange+")")
-//			    }
+
  				mutAmt = mutAmt * .6
  				if((gen+1) % 20 == 0){
- 				    gameBoards = gameBoards.map{board =>
- 				        val newBoard = board.clone
- 				        newBoard.reset(true)
- 				        newBoard
- 				    }
+// 				    gameBoards = gameBoards.map{board =>
+// 				        val newBoard = board.clone
+// 				        newBoard.reset(true)
+// 				        newBoard
+// 				    }
  				    mutAmt = resetMutAmt
  				}
 				
-			    lastFit = best._2
-			    val lastCode = best._1
+				val bestCode = best._1
 				
-			    val network = createNetwork
-			    setupNetworkForIndividual(network, lastCode.expressedIndividual)
-			    
-			    val bestFit:Double = if(gen == 1 || (gen+1) % 5 == 0 || gen == maxGen){
- 					println("================= "+gen+" =====================")
- 					printGame(network, origBoard, 150, targetAwareness, mineAwareness)
- 				}else{
- 				    playGame(network, origBoard, 150, targetAwareness, mineAwareness){(x,y)=>}
- 				}
-			    println("Best fitness = "+bestFit)
+				val network = createNetwork
+			    setupNetworkForIndividual(network, bestCode.expressedIndividual)
+				val fit = playGame(network, origBoard, 100, targetAwareness, mineAwareness){(x,y)=>}
+				println("Best fitness = "+fit)
+				if(fit > lastFit || gen == 1 || gen == maxGen){
+				    lastFit = fit
+				    println("================= "+gen+" =====================")
+				    println("Improved to "+lastFit)
+				    printGame(network, origBoard, 100, targetAwareness, mineAwareness)
+				}
 			}
 		}
 		
@@ -235,12 +215,12 @@ object TankGA {
 		    lastOrientation = board.getOrientation
 			val turnInputs:Map[String,Double] = getGameTurnInputs(lastLeft, lastRight, lastUp, lastDown, board, targetAwareness, mineAwareness);
 			val outputs = network.calculate(turnInputs)
-			val dx = (outputs("right") - outputs("left")) * 0.5
-			val dy = (outputs("up") - outputs("down")) * 0.5
-			lastLeft = -dx
-			lastRight = dx
-			lastUp = dy
-			lastDown = -dy
+			val dx = (1.0 + outputs("right")) * 0.5 - (1.0 + outputs("left")) * 0.5
+			val dy = (1.0 + outputs("up")) * 0.5 - (1.0 + outputs("down")) * 0.5
+			lastLeft = outputs("left")
+			lastRight = outputs("right")
+			lastUp = outputs("up")
+			lastDown = outputs("down")
 			board.moveTank((dx,dy))
 			fitness += board.getScore
 			i+=1

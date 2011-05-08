@@ -20,8 +20,8 @@ abstract class TankNetwork(val inputKeys:Seq[String], val outputKeys:Seq[String]
 	//converges to 0 and 1, it helps to expand the output range if the values
 	//we're looking for are near 0 and 1. It will allow the outputs to converge
 	//more quickly to the correct values during training.
-	override def minNeuronOutput:Double = -1.1
-	override def maxNeuronOutput:Double = 1.1
+	override def minNeuronOutput:Double = -1.0
+	override def maxNeuronOutput:Double = 1.0
 	
 }
 
